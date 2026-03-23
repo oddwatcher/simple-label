@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Labeling Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: #16213e;
+            border-right: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 15px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+        }
+
+        .image-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .image-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .image-item:hover {
+            background: #0f3460;
+        }
+
+        .image-item.active {
+            border-color: #e94560;
+            background: #0f3460;
+        }
+
+        .image-item.has-annotation::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #4ade80;
+            border-radius: 50%;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .image-item.no-annotation::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #6b7280;
+            border-radius: 50%;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .image-name {
+            font-size: 13px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Toolbar */
+        .toolbar {
+            height: 60px;
+            background: #16213e;
+            border-bottom: 1px solid #0f3460;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding-right: 15px;
+            border-right: 1px solid #0f3460;
+        }
+
+        .toolbar-group:last-child {
+            border-right: none;
+            margin-left: auto;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #d63d56;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #eee;
+        }
+
+        .btn-secondary:hover {
+            background: #1a4a7a;
+        }
+
+        .export-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .export-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #16213e;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            min-width: 150px;
+            z-index: 1000;
+            margin-top: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .export-menu.show {
+            display: block;
+        }
+
+        .export-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+            color: #eee;
+        }
+
+        .export-item:hover {
+            background: #0f3460;
+        }
+
+        .export-item:first-child {
+            border-radius: 6px 6px 0 0;
+        }
+
+        .export-item:last-child {
+            border-radius: 0 0 6px 6px;
+        }
+
+        .btn-danger {
+            background: #dc2626;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #b91c1c;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Canvas Area */
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #0f0f1e;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: crosshair;
+        }
+
+        .canvas-placeholder {
+            color: #6b7280;
+            font-size: 18px;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            width: 320px;
+            background: #16213e;
+            border-left: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-section {
+            padding: 15px;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .panel-section h3 {
+            font-size: 14px;
+            color: #e94560;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .label-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .label-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .label-item:hover {
+            background: #0f3460;
+        }
+
+        .label-item.selected {
+            background: #e94560;
+        }
+
+        .label-item .icon-btn {
+            opacity: 0;
+            transition: opacity 0.2s;
+            margin-left: 4px;
+        }
+
+        .label-item:hover .icon-btn {
+            opacity: 1;
+        }
+
+        .label-item.hidden-label {
+            background: #1a1a2e;
+        }
+
+        .label-item.hidden-label .label-color {
+            background: #666 !important;
+        }
+
+        .label-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 10px;
+        }
+
+        .label-name {
+            flex: 1;
+            font-size: 13px;
+        }
+
+        .add-label-form {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .add-label-form input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 4px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 13px;
+        }
+
+        /* Annotations List */
+        .annotations-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .annotation-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 5px;
+            background: #1a1a2e;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .annotation-item:hover {
+            background: #0f3460;
+        }
+
+        .annotation-item.selected {
+            border: 2px solid #e94560;
+        }
+
+        .annotation-item.hidden-annotation {
+            opacity: 0.5;
+            background: #1a1a2e;
+        }
+
+        .annotation-info {
+            flex: 1;
+            font-size: 12px;
+        }
+
+        .annotation-label {
+            font-weight: 600;
+            color: #e94560;
+        }
+
+        .annotation-coords {
+            color: #9ca3af;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .annotation-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .icon-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            border-radius: 4px;
+            background: #0f3460;
+            color: #eee;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            background: #e94560;
+        }
+
+        /* Info Panel */
+        .info-panel {
+            padding: 15px;
+            background: #1a1a2e;
+            border-top: 1px solid #0f3460;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .info-label {
+            color: #9ca3af;
+        }
+
+        .info-value {
+            color: #eee;
+            font-weight: 500;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #16213e;
+            padding: 25px;
+            border-radius: 8px;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #e94560;
+            font-size: 20px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #0f3460;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .drop-zone:hover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .drop-zone.dragover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        /* Keyboard shortcuts */
+        .shortcuts-help {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+        }
+
+        .shortcuts-toggle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #0f3460;
+            border: 2px solid #e94560;
+            color: #e94560;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .shortcuts-toggle:hover {
+            background: #e94560;
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .shortcuts-content {
+            position: absolute;
+            bottom: 45px;
+            right: 0;
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #0f3460;
+            font-size: 12px;
+            width: 220px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(10px);
+            transition: all 0.2s;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .shortcuts-help:hover .shortcuts-content {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .shortcuts-content h4 {
+            color: #e94560;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .shortcut-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        kbd {
+            background: #1a1a2e;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 11px;
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #e94560;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Image Labeler</h1>
+                <input type="text" class="search-box" id="searchBox" placeholder="Search images...">
+            </div>
+            <div class="image-list" id="imageList"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Toolbar -->
+            <div class="toolbar">
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary" id="prevBtn" title="Previous Image (Left Arrow)">
+                        ← Prev
+                    </button>
+                    <button class="btn btn-secondary" id="nextBtn" title="Next Image (Right Arrow)">
+                        Next →
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button class="btn btn-primary" id="drawBtn" title="Draw Box (D)">
+                        Draw Box
+                    </button>
+                    <button class="btn btn-secondary" id="selectBtn" title="Select/Move (S)">
+                        Select
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <button class="btn btn-secondary" id="backToDatasetsBtn" title="Back to Datasets">
+                        ← Datasets
+                    </button>
+                    <button class="btn btn-secondary" id="uploadBtn" title="Upload Images">
+                        Upload
+                    </button>
+                    <button class="btn btn-danger" id="deleteBtn" title="Delete Image (Delete)">
+                        Delete
+                    </button>
+                </div>
+                <div class="toolbar-group">
+                    <div class="export-dropdown">
+                        <button class="btn btn-secondary" id="exportBtn" title="Export Dataset">
+                            Export ▼
+                        </button>
+                        <div class="export-menu" id="exportMenu">
+                            <div class="export-item" data-format="yolo">YOLO Format</div>
+                            <div class="export-item" data-format="voc">Pascal VOC</div>
+                            <div class="export-item" data-format="coco">COCO Format</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Canvas Area -->
+            <div class="canvas-container" id="canvasContainer">
+                <div class="canvas-placeholder">Select an image to start labeling</div>
+                <canvas id="canvas"></canvas>
+            </div>
+        </div>
+
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="panel-section">
+                <h3>Labels</h3>
+                <div class="label-list" id="labelList"></div>
+                <div class="add-label-form">
+                    <input type="text" id="newLabelInput" placeholder="New label name...">
+                    <button class="btn btn-primary" id="addLabelBtn">Add</button>
+                </div>
+            </div>
+
+            <div class="panel-section annotations-list">
+                <h3>Annotations</h3>
+                <div id="annotationsList"></div>
+            </div>
+
+            <div class="info-panel">
+                <div class="info-row">
+                    <span class="info-label">Image:</span>
+                    <span class="info-value" id="infoImageName">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Dimensions:</span>
+                    <span class="info-value" id="infoDimensions">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Annotations:</span>
+                    <span class="info-value" id="infoAnnotationCount">0</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Status:</span>
+                    <span class="info-value" id="infoStatus">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Upload Modal -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Upload Images</h2>
+            </div>
+            <div class="modal-body">
+                <div class="drop-zone" id="dropZone">
+                    <p>Drag and drop images here</p>
+                    <p>or click to select files</p>
+                    <input type="file" id="fileInput" multiple accept="image/*" style="display: none;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeUploadBtn">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <!-- Shortcuts Help -->
+    <div class="shortcuts-help">
+        <div class="shortcuts-toggle">?</div>
+        <div class="shortcuts-content">
+            <h4>Keyboard Shortcuts</h4>
+            <div class="shortcut-row">
+                <span>Previous/Next</span>
+                <span><kbd>←</kbd> <kbd>→</kbd></span>
+            </div>
+            <div class="shortcut-row">
+                <span>Draw Mode</span>
+                <span><kbd>D</kbd></span>
+            </div>
+            <div class="shortcut-row">
+                <span>Select Mode</span>
+                <span><kbd>S</kbd></span>
+            </div>
+            <div class="shortcut-row">
+                <span>Delete Box/Image</span>
+                <span><kbd>Del</kbd></span>
+            </div>
+            <div class="shortcut-row">
+                <span>Cancel/Escape</span>
+                <span><kbd>Esc</kbd></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Labeling Tool - Select Dataset</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 36px;
+            color: #e94560;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #9ca3af;
+            font-size: 16px;
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: #e94560;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #d63d56;
+        }
+
+        .btn-secondary {
+            background: #0f3460;
+            color: #eee;
+        }
+
+        .btn-secondary:hover {
+            background: #1a4a7a;
+        }
+
+        .datasets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .dataset-card {
+            background: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dataset-card:hover {
+            border-color: #e94560;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(233, 69, 96, 0.2);
+        }
+
+        .dataset-card.active {
+            border-color: #4ade80;
+        }
+
+        .dataset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .dataset-name {
+            font-size: 20px;
+            font-weight: 600;
+            color: #eee;
+        }
+
+        .dataset-badge {
+            background: #0f3460;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .dataset-badge.active {
+            background: #4ade80;
+            color: #1a1a2e;
+        }
+
+        .dataset-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .export-menu {
+            position: relative;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .export-submenu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            background: #1a1a2e;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            min-width: 150px;
+            z-index: 100;
+            margin-top: 5px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+        }
+
+        .export-submenu.show {
+            display: block;
+        }
+
+        .export-option {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .export-option:hover {
+            background: #0f3460;
+        }
+
+        .export-option:first-child {
+            border-radius: 6px 6px 0 0;
+        }
+
+        .export-option:last-child {
+            border-radius: 0 0 6px 6px;
+        }
+
+        .dataset-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .stat {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #e94560;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-top: 4px;
+        }
+
+        .dataset-meta {
+            font-size: 12px;
+            color: #6b7280;
+            border-top: 1px solid #0f3460;
+            padding-top: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            color: #6b7280;
+        }
+
+        .empty-state h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #9ca3af;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: #16213e;
+            padding: 30px;
+            border-radius: 12px;
+            min-width: 450px;
+            max-width: 600px;
+        }
+
+        .modal-header {
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #e94560;
+            font-size: 24px;
+        }
+
+        .modal-body {
+            margin-bottom: 20px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #9ca3af;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+        }
+
+        .drop-zone {
+            border: 2px dashed #0f3460;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .drop-zone:hover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .drop-zone.dragover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        .progress-bar {
+            background: #0f3460;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            background: #e94560;
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Import Tabs */
+        .import-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #0f3460;
+            padding-bottom: 10px;
+        }
+
+        .import-tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .import-tab:hover {
+            background: #1a1a2e;
+            color: #eee;
+        }
+
+        .import-tab.active {
+            background: #0f3460;
+            color: #eee;
+        }
+
+        /* Local Import Form */
+        #importLocalSection .form-group {
+            margin-bottom: 15px;
+        }
+
+        #importLocalSection label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #9ca3af;
+        }
+
+        #importLocalSection input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+        }
+
+        #importLocalSection input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Image Labeling Tool</h1>
+            <p>Select a dataset to start labeling or create a new one</p>
+        </div>
+
+        <div class="actions-bar">
+            <button class="btn btn-primary" id="createDatasetBtn">
+                + Create New Dataset
+            </button>
+            <button class="btn btn-secondary" id="importDatasetBtn">
+                Import Dataset
+            </button>
+        </div>
+
+        <div class="datasets-grid" id="datasetsGrid">
+            <!-- Datasets will be loaded here -->
+        </div>
+    </div>
+
+    <!-- Create Dataset Modal -->
+    <div class="modal" id="createDatasetModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New Dataset</h2>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="datasetName">Dataset Name</label>
+                    <input type="text" id="datasetName" placeholder="e.g., my-dataset">
+                </div>
+                <div class="form-group">
+                    <label for="classNames">Class Names (comma-separated)</label>
+                    <input type="text" id="classNames" placeholder="e.g., person, car, dog">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeCreateBtn">Cancel</button>
+                <button class="btn btn-primary" id="confirmCreateBtn">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Dataset Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Import Dataset</h2>
+            </div>
+            <div class="modal-body">
+                <!-- Import Type Tabs -->
+                <div class="import-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #0f3460; padding-bottom: 10px;">
+                    <button class="import-tab active" data-tab="archive" style="flex: 1; padding: 10px; background: #0f3460; border: none; color: #eee; cursor: pointer; border-radius: 6px;">From Archive</button>
+                    <button class="import-tab" data-tab="local" style="flex: 1; padding: 10px; background: transparent; border: none; color: #9ca3af; cursor: pointer; border-radius: 6px;">From Local Files</button>
+                </div>
+
+                <!-- Archive Import Section -->
+                <div id="importArchiveSection">
+                    <p style="margin-bottom: 15px; color: #9ca3af;">Upload a ZIP, 7Z, TAR, or RAR archive containing your dataset.</p>
+                    <div class="drop-zone" id="importDropZone">
+                        <p>Drag and drop archive file here</p>
+                        <p>or click to select file</p>
+                        <input type="file" id="importFileInput" accept=".zip,.7z,.tar,.gz,.bz2,.rar" style="display: none;">
+                    </div>
+                </div>
+
+                <!-- Local Files Import Section -->
+                <div id="importLocalSection" class="hidden">
+                    <p style="margin-bottom: 15px; color: #9ca3af;">Import a dataset from a local folder or ZIP file on the server.</p>
+                    <div class="form-group">
+                        <label>Dataset Name</label>
+                        <input type="text" id="localDatasetName" placeholder="e.g., student-dataset">
+                    </div>
+                    <div class="form-group">
+                        <label>Path to Dataset</label>
+                        <input type="text" id="localDatasetPath" placeholder="e.g., /root/viewer/datasets/student or /path/to/dataset.zip">
+                    </div>
+                    <p style="font-size: 12px; color: #6b7280; margin-top: 10px;">
+                        Path can be a folder containing images/ and labels/ directories, or a ZIP archive.
+                    </p>
+                </div>
+
+                <div id="importStep2" class="hidden">
+                    <p style="margin-bottom: 15px;">Detected formats. Please select the correct format:</p>
+                    <div id="formatOptions" style="margin-bottom: 15px;"></div>
+                    <div id="importProgress" class="hidden">
+                        <p>Converting dataset...</p>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="importProgressBar"></div>
+                        </div>
+                    </div>
+                    <div id="importResults" class="hidden">
+                        <h3 style="color: #4ade80; margin-bottom: 10px;">Import Complete!</h3>
+                        <p id="importStats"></p>
+                        <h4 style="margin: 15px 0 10px 0;">Labels Found:</h4>
+                        <div id="importLabels"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeImportBtn">Close</button>
+                <button class="btn btn-primary hidden" id="confirmImportBtn">Import</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Dataset Selection Page Logic
+        class DatasetSelector {
+            constructor() {
+                this.datasets = [];
+                this.selectedFormat = null;
+                this.importFile = null;
+                this.init();
+            }
+
+            init() {
+                this.setupEventListeners();
+                this.loadDatasets();
+            }
+
+            setupEventListeners() {
+                // Create dataset
+                document.getElementById('createDatasetBtn').addEventListener('click', () => {
+                    document.getElementById('createDatasetModal').classList.add('active');
+                });
+
+                document.getElementById('closeCreateBtn').addEventListener('click', () => {
+                    document.getElementById('createDatasetModal').classList.remove('active');
+                });
+
+                document.getElementById('confirmCreateBtn').addEventListener('click', () => {
+                    this.createDataset();
+                });
+
+                // Import dataset
+                document.getElementById('importDatasetBtn').addEventListener('click', () => {
+                    document.getElementById('importModal').classList.add('active');
+                });
+
+                document.getElementById('closeImportBtn').addEventListener('click', () => {
+                    this.hideImportModal();
+                });
+
+                // Import drop zone
+                const dropZone = document.getElementById('importDropZone');
+                dropZone.addEventListener('click', () => document.getElementById('importFileInput').click());
+                dropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('dragover');
+                });
+                dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+                dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('dragover');
+                    if (e.dataTransfer.files.length > 0) {
+                        this.handleImportFile(e.dataTransfer.files[0]);
+                    }
+                });
+
+                document.getElementById('importFileInput').addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) {
+                        this.handleImportFile(e.target.files[0]);
+                    }
+                });
+
+                document.getElementById('confirmImportBtn').addEventListener('click', () => {
+                    this.importDataset();
+                });
+
+                // Import tabs
+                const importTabs = document.querySelectorAll('.import-tab');
+                importTabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        // Update active tab
+                        importTabs.forEach(t => {
+                            t.classList.remove('active');
+                            t.style.background = 'transparent';
+                            t.style.color = '#9ca3af';
+                        });
+                        tab.classList.add('active');
+                        tab.style.background = '#0f3460';
+                        tab.style.color = '#eee';
+
+                        // Show corresponding section
+                        const tabName = tab.getAttribute('data-tab');
+                        const archiveSection = document.getElementById('importArchiveSection');
+                        const localSection = document.getElementById('importLocalSection');
+                        
+                        if (tabName === 'archive') {
+                            if (archiveSection) archiveSection.classList.remove('hidden');
+                            if (localSection) localSection.classList.add('hidden');
+                        } else {
+                            if (archiveSection) archiveSection.classList.add('hidden');
+                            if (localSection) localSection.classList.remove('hidden');
+                        }
+                    });
+                });
+            }
+
+            async loadDatasets() {
+                try {
+                    const response = await fetch('/api/datasets');
+                    const data = await response.json();
+                    this.datasets = data.datasets || [];
+                    this.renderDatasets();
+                } catch (error) {
+                    console.error('Failed to load datasets:', error);
+                }
+            }
+
+            renderDatasets() {
+                const container = document.getElementById('datasetsGrid');
+                
+                if (this.datasets.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state" style="grid-column: 1 / -1;">
+                            <h2>No Datasets Found</h2>
+                            <p>Create a new dataset or import one to get started</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = this.datasets.map(dataset => `
+                    <div class="dataset-card ${dataset.is_active ? 'active' : ''}">
+                        <div class="dataset-header">
+                            <div class="dataset-name">${dataset.name}</div>
+                            <div class="dataset-actions">
+                                ${dataset.is_active ? '<div class="dataset-badge active">Active</div>' : '<div class="dataset-badge">Inactive</div>'}
+                                <div class="export-menu">
+                                    <button class="btn btn-sm btn-secondary export-btn" onclick="event.stopPropagation(); datasetSelector.showExportMenu('${dataset.name}')">
+                                        Export ▼
+                                    </button>
+                                    <div class="export-submenu" id="export-menu-${dataset.name}">
+                                        <div class="export-option" onclick="datasetSelector.exportDataset('${dataset.name}', 'yolo')">YOLO Format</div>
+                                        <div class="export-option" onclick="datasetSelector.exportDataset('${dataset.name}', 'voc')">Pascal VOC</div>
+                                        <div class="export-option" onclick="datasetSelector.exportDataset('${dataset.name}', 'coco')">COCO Format</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="dataset-content" onclick="datasetSelector.selectDataset('${dataset.name}')">
+                            <div class="dataset-stats">
+                                <div class="stat">
+                                    <div class="stat-value">${dataset.image_count || 0}</div>
+                                    <div class="stat-label">Images</div>
+                                </div>
+                                <div class="stat">
+                                    <div class="stat-value">${dataset.annotated_count || 0}</div>
+                                    <div class="stat-label">Annotated</div>
+                                </div>
+                            </div>
+                            <div class="dataset-meta">
+                                Created: ${new Date(dataset.created_at).toLocaleDateString()} | 
+                                Updated: ${new Date(dataset.updated_at).toLocaleDateString()}
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            async selectDataset(datasetName) {
+                try {
+                    const response = await fetch(`/api/datasets/${datasetName}/activate`, {
+                        method: 'POST'
+                    });
+                    
+                    if (response.ok) {
+                        // Redirect to annotation page
+                        window.location.href = `/label?dataset=${encodeURIComponent(datasetName)}`;
+                    } else {
+                        alert('Failed to select dataset');
+                    }
+                } catch (error) {
+                    console.error('Failed to select dataset:', error);
+                    alert('Failed to select dataset');
+                }
+            }
+
+            async createDataset() {
+                const name = document.getElementById('datasetName').value.trim();
+                const classNamesInput = document.getElementById('classNames').value.trim();
+                
+                if (!name) {
+                    alert('Please enter a dataset name');
+                    return;
+                }
+
+                const classNames = classNamesInput 
+                    ? classNamesInput.split(',').map(s => s.trim()).filter(s => s)
+                    : [];
+
+                try {
+                    const response = await fetch('/api/datasets', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, class_names: classNames })
+                    });
+
+                    if (response.ok) {
+                        document.getElementById('createDatasetModal').classList.remove('active');
+                        document.getElementById('datasetName').value = '';
+                        document.getElementById('classNames').value = '';
+                        this.loadDatasets();
+                    } else {
+                        const error = await response.json();
+                        alert(error.error || 'Failed to create dataset');
+                    }
+                } catch (error) {
+                    console.error('Failed to create dataset:', error);
+                    alert('Failed to create dataset');
+                }
+            }
+
+            async handleImportFile(file) {
+                this.importFile = file;
+                
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const response = await fetch('/api/import/detect', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.formats && data.formats.length > 0) {
+                        this.showFormatSelection(data.formats);
+                    } else {
+                        alert('No valid dataset format detected');
+                    }
+                } catch (error) {
+                    console.error('Failed to detect format:', error);
+                    alert('Failed to detect dataset format');
+                }
+            }
+
+            showFormatSelection(formats) {
+                document.getElementById('importStep1').classList.add('hidden');
+                document.getElementById('importStep2').classList.remove('hidden');
+                document.getElementById('confirmImportBtn').classList.remove('hidden');
+
+                const container = document.getElementById('formatOptions');
+                container.innerHTML = formats.map((format, index) => `
+                    <label style="display: block; margin-bottom: 10px; cursor: pointer; padding: 10px; background: #1a1a2e; border-radius: 6px;">
+                        <input type="radio" name="format" value="${format.format}" ${index === 0 ? 'checked' : ''} 
+                               onchange="datasetSelector.selectedFormat = '${format.format}'">
+                        <strong>${format.format.toUpperCase()}</strong> - ${format.description}
+                        <br><small style="color: #6b7280;">${format.image_count} images, ${format.label_count} labels</small>
+                    </label>
+                `).join('');
+
+                this.selectedFormat = formats[0].format;
+            }
+
+            async importDataset() {
+                // Check which tab is active
+                const archiveTab = document.querySelector('.import-tab[data-tab="archive"]');
+                if (!archiveTab) {
+                    console.error('Archive tab not found');
+                    alert('Import error: Tab element not found');
+                    return;
+                }
+                const isArchiveTab = archiveTab.classList.contains('active');
+                
+                if (isArchiveTab) {
+                    // Archive import (existing logic)
+                    if (!this.importFile || !this.selectedFormat) {
+                        alert('Please select a file and format first');
+                        return;
+                    }
+
+                    document.getElementById('confirmImportBtn').classList.add('hidden');
+                    document.getElementById('importProgress').classList.remove('hidden');
+
+                    const formData = new FormData();
+                    formData.append('file', this.importFile);
+                    formData.append('format', this.selectedFormat);
+
+                    try {
+                        const response = await fetch('/api/import/convert', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            document.getElementById('importProgress').classList.add('hidden');
+                            document.getElementById('importResults').classList.remove('hidden');
+                            document.getElementById('importStats').innerHTML = `
+                                Dataset: <strong>${data.dataset_name}</strong><br>
+                                Images: ${data.images_added}<br>
+                                Classes: ${data.class_names.length}
+                            `;
+                            document.getElementById('importLabels').innerHTML = data.class_names
+                                .map(name => `<span style="display: inline-block; background: #0f3460; padding: 4px 10px; border-radius: 4px; margin: 2px;">${name}</span>`)
+                                .join('');
+                            
+                            // Reload datasets after a delay
+                            setTimeout(() => {
+                                this.hideImportModal();
+                                this.loadDatasets();
+                            }, 2000);
+                        } else {
+                            alert(data.error || 'Import failed');
+                            this.hideImportModal();
+                        }
+                    } catch (error) {
+                        console.error('Import failed:', error);
+                        alert('Import failed');
+                        this.hideImportModal();
+                    }
+                } else {
+                    // Local import
+                    const datasetName = document.getElementById('localDatasetName').value.trim();
+                    const datasetPath = document.getElementById('localDatasetPath').value.trim();
+                    
+                    if (!datasetName) {
+                        alert('Please enter a dataset name');
+                        return;
+                    }
+                    
+                    if (!datasetPath) {
+                        alert('Please enter the path to the dataset');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch('/api/import/local', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: datasetName,
+                                path: datasetPath
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.success) {
+                            alert(`Import successful!\nDataset: ${data.dataset_name}\nImages: ${data.image_count}\nLabels: ${data.label_count}`);
+                            this.hideImportModal();
+                            this.loadDatasets();
+                        } else {
+                            alert(data.error || 'Import failed');
+                        }
+                    } catch (error) {
+                        console.error('Local import failed:', error);
+                        alert('Local import failed: ' + error.message);
+                    }
+                }
+            }
+
+            hideImportModal() {
+                const modal = document.getElementById('importModal');
+                if (modal) {
+                    modal.classList.remove('active');
+                }
+                
+                // Reset archive import
+                const step1 = document.getElementById('importStep1');
+                const step2 = document.getElementById('importStep2');
+                const progress = document.getElementById('importProgress');
+                const results = document.getElementById('importResults');
+                const confirmBtn = document.getElementById('confirmImportBtn');
+                
+                if (step1) step1.classList.remove('hidden');
+                if (step2) step2.classList.add('hidden');
+                if (progress) progress.classList.add('hidden');
+                if (results) results.classList.add('hidden');
+                if (confirmBtn) confirmBtn.classList.add('hidden');
+                
+                this.importFile = null;
+                this.selectedFormat = null;
+                
+                // Reset local import form
+                const localName = document.getElementById('localDatasetName');
+                const localPath = document.getElementById('localDatasetPath');
+                if (localName) localName.value = '';
+                if (localPath) localPath.value = '';
+                
+                // Reset to archive tab
+                const tabs = document.querySelectorAll('.import-tab');
+                if (tabs.length > 0) {
+                    tabs.forEach(t => {
+                        t.classList.remove('active');
+                        t.style.background = 'transparent';
+                        t.style.color = '#9ca3af';
+                    });
+                    const archiveTab = document.querySelector('.import-tab[data-tab="archive"]');
+                    if (archiveTab) {
+                        archiveTab.classList.add('active');
+                        archiveTab.style.background = '#0f3460';
+                        archiveTab.style.color = '#eee';
+                    }
+                }
+                
+                const archiveSection = document.getElementById('importArchiveSection');
+                const localSection = document.getElementById('importLocalSection');
+                if (archiveSection) archiveSection.classList.remove('hidden');
+                if (localSection) localSection.classList.add('hidden');
+            }
+
+            showExportMenu(datasetName) {
+                // Hide all other export menus first
+                document.querySelectorAll('.export-submenu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+                
+                // Show this export menu
+                const menu = document.getElementById(`export-menu-${datasetName}`);
+                if (menu) {
+                    menu.classList.toggle('show');
+                }
+                
+                // Close menu when clicking outside
+                const closeMenu = (e) => {
+                    if (!e.target.closest('.export-menu')) {
+                        document.querySelectorAll('.export-submenu').forEach(m => m.classList.remove('show'));
+                        document.removeEventListener('click', closeMenu);
+                    }
+                };
+                
+                // Delay adding listener to avoid immediate close
+                setTimeout(() => {
+                    document.addEventListener('click', closeMenu);
+                }, 0);
+            }
+
+            async exportDataset(datasetName, format) {
+                // Hide the menu
+                document.querySelectorAll('.export-submenu').forEach(menu => {
+                    menu.classList.remove('show');
+                });
+                
+                try {
+                    const response = await fetch(`/api/datasets/${datasetName}/export/${format}`);
+                    if (response.ok) {
+                        const result = await response.json();
+                        alert(`Export info:\nDataset: ${result.dataset_name}\nFormat: ${result.format}\nImages: ${result.image_count}\n\n${result.note || 'Dataset exported'}`);
+                    } else {
+                        const error = await response.json();
+                        alert('Export failed: ' + (error.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Export failed:', error);
+                    alert('Export failed');
+                }
+            }
+        }
+
+        // Initialize
+        const datasetSelector = new DatasetSelector();
+    </script>
+</body>
+</html>
