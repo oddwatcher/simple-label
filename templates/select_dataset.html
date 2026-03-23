@@ -470,6 +470,7 @@
                     <p style="font-size: 12px; color: #6b7280; margin-top: 10px;">
                         Path can be a folder containing images/ and labels/ directories, or a ZIP archive.
                     </p>
+                    <button class="btn btn-primary" id="confirmLocalImportBtn" style="margin-top: 15px; width: 30%;">Import Local Dataset</button>
                 </div>
 
                 <div id="importStep2" class="hidden">
@@ -558,6 +559,11 @@
 
                 document.getElementById('confirmImportBtn').addEventListener('click', () => {
                     this.importDataset();
+                });
+
+                // Local import button
+                document.getElementById('confirmLocalImportBtn').addEventListener('click', () => {
+                    this.importLocalDataset();
                 });
 
                 // Import tabs
@@ -749,101 +755,92 @@
             }
 
             async importDataset() {
-                // Check which tab is active
-                const archiveTab = document.querySelector('.import-tab[data-tab="archive"]');
-                if (!archiveTab) {
-                    console.error('Archive tab not found');
-                    alert('Import error: Tab element not found');
+                // Archive import only
+                if (!this.importFile || !this.selectedFormat) {
+                    alert('Please select a file and format first');
                     return;
                 }
-                const isArchiveTab = archiveTab.classList.contains('active');
-                
-                if (isArchiveTab) {
-                    // Archive import (existing logic)
-                    if (!this.importFile || !this.selectedFormat) {
-                        alert('Please select a file and format first');
-                        return;
-                    }
 
-                    document.getElementById('confirmImportBtn').classList.add('hidden');
-                    document.getElementById('importProgress').classList.remove('hidden');
+                document.getElementById('confirmImportBtn').classList.add('hidden');
+                document.getElementById('importProgress').classList.remove('hidden');
 
-                    const formData = new FormData();
-                    formData.append('file', this.importFile);
-                    formData.append('format', this.selectedFormat);
+                const formData = new FormData();
+                formData.append('file', this.importFile);
+                formData.append('format', this.selectedFormat);
 
-                    try {
-                        const response = await fetch('/api/import/convert', {
-                            method: 'POST',
-                            body: formData
-                        });
+                try {
+                    const response = await fetch('/api/import/convert', {
+                        method: 'POST',
+                        body: formData
+                    });
 
-                        const data = await response.json();
+                    const data = await response.json();
 
-                        if (data.success) {
-                            document.getElementById('importProgress').classList.add('hidden');
-                            document.getElementById('importResults').classList.remove('hidden');
-                            document.getElementById('importStats').innerHTML = `
-                                Dataset: <strong>${data.dataset_name}</strong><br>
-                                Images: ${data.images_added}<br>
-                                Classes: ${data.class_names.length}
-                            `;
-                            document.getElementById('importLabels').innerHTML = data.class_names
-                                .map(name => `<span style="display: inline-block; background: #0f3460; padding: 4px 10px; border-radius: 4px; margin: 2px;">${name}</span>`)
-                                .join('');
-                            
-                            // Reload datasets after a delay
-                            setTimeout(() => {
-                                this.hideImportModal();
-                                this.loadDatasets();
-                            }, 2000);
-                        } else {
-                            alert(data.error || 'Import failed');
-                            this.hideImportModal();
-                        }
-                    } catch (error) {
-                        console.error('Import failed:', error);
-                        alert('Import failed');
-                        this.hideImportModal();
-                    }
-                } else {
-                    // Local import
-                    const datasetName = document.getElementById('localDatasetName').value.trim();
-                    const datasetPath = document.getElementById('localDatasetPath').value.trim();
-                    
-                    if (!datasetName) {
-                        alert('Please enter a dataset name');
-                        return;
-                    }
-                    
-                    if (!datasetPath) {
-                        alert('Please enter the path to the dataset');
-                        return;
-                    }
-
-                    try {
-                        const response = await fetch('/api/import/local', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                name: datasetName,
-                                path: datasetPath
-                            })
-                        });
-
-                        const data = await response.json();
-
-                        if (data.success) {
-                            alert(`Import successful!\nDataset: ${data.dataset_name}\nImages: ${data.image_count}\nLabels: ${data.label_count}`);
+                    if (data.success) {
+                        document.getElementById('importProgress').classList.add('hidden');
+                        document.getElementById('importResults').classList.remove('hidden');
+                        document.getElementById('importStats').innerHTML = `
+                            Dataset: <strong>${data.dataset_name}</strong><br>
+                            Images: ${data.images_added}<br>
+                            Classes: ${data.class_names.length}
+                        `;
+                        document.getElementById('importLabels').innerHTML = data.class_names
+                            .map(name => `<span style="display: inline-block; background: #0f3460; padding: 4px 10px; border-radius: 4px; margin: 2px;">${name}</span>`)
+                            .join('');
+                        
+                        // Reload datasets after a delay
+                        setTimeout(() => {
                             this.hideImportModal();
                             this.loadDatasets();
-                        } else {
-                            alert(data.error || 'Import failed');
-                        }
-                    } catch (error) {
-                        console.error('Local import failed:', error);
-                        alert('Local import failed: ' + error.message);
+                        }, 2000);
+                    } else {
+                        alert(data.error || 'Import failed');
+                        this.hideImportModal();
                     }
+                } catch (error) {
+                    console.error('Import failed:', error);
+                    alert('Import failed');
+                    this.hideImportModal();
+                }
+            }
+
+            async importLocalDataset() {
+                // Local import
+                const datasetName = document.getElementById('localDatasetName').value.trim();
+                const datasetPath = document.getElementById('localDatasetPath').value.trim();
+                
+                if (!datasetName) {
+                    alert('Please enter a dataset name');
+                    return;
+                }
+                
+                if (!datasetPath) {
+                    alert('Please enter the path to the dataset');
+                    return;
+                }
+
+                try {
+                    const response = await fetch('/api/import/local', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: datasetName,
+                            path: datasetPath
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        alert(`Import successful!\nDataset: ${data.dataset_name}\nImages: ${data.image_count}\nLabels: ${data.label_count}`);
+                        this.hideImportModal();
+                        this.loadDatasets();
+                    } else {
+                        alert(data.error || 'Import failed');
+                    }
+                } catch (error) {
+                    console.error('Local import failed:', error);
+                    alert('Local import failed: ' + error.message);
                 }
             }
 
