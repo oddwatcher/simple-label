@@ -4,15 +4,17 @@ Image Labeling Tool - Flask Web Server
 Uses YOLO format as intermediate: images/*.jpg + labels/*.txt + metadata.json
 """
 
-import os
+import sys
 import json
 import shutil
 from pathlib import Path
+sys.path.append(str(Path(__file__).parent))
 from flask import Flask, request, jsonify, send_file, render_template, redirect
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 from datetime import datetime
 from PIL import Image
+from models import model_manager, ULTRALYTICS_AVAILABLE
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
@@ -23,6 +25,8 @@ DATASETS_PATH = VIEWER_PATH / 'datasets'
 DATASETS_REGISTRY = VIEWER_PATH / 'datasets.json'
 TEMP_DIR = VIEWER_PATH / 'temp'
 ALLOWED_EXTENSIONS = {'jpg', 'jpeg', 'png', 'bmp', 'gif'}
+
+
 
 # Ensure directories exist
 DATASETS_PATH.mkdir(parents=True, exist_ok=True)
@@ -1448,6 +1452,255 @@ def import_local_dataset():
         if 'extract_dir' in locals() and extract_dir.exists():
             shutil.rmtree(extract_dir)
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
+
+# ==================== MODEL MANAGEMENT API ====================
+
+@app.route('/api/models')
+def list_models():
+    """List all available models"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available. Install ultralytics.'}), 503
+    
+    try:
+        models = model_manager.list_models()
+        return jsonify({'models': models})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models', methods=['POST'])
+def create_model():
+    """Create a new model entry"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available'}), 503
+    
+    data = request.json
+    name = data.get('name')
+    description = data.get('description', '')
+    
+    if not name:
+        return jsonify({'error': 'Model name required'}), 400
+    
+    try:
+        model_info = model_manager.add_model(name, description)
+        return jsonify({'success': True, 'model': model_info})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<model_id>/upload', methods=['POST'])
+def upload_model_weights(model_id):
+    """Upload model weights file"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available'}), 503
+    
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if not file or not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+    
+    # Save to temp
+    temp_path = TEMP_DIR / secure_filename(file.filename)
+    file.save(temp_path)
+    
+    try:
+        model_info = model_manager.upload_weights(model_id, str(temp_path), file.filename)
+        temp_path.unlink()
+        return jsonify({'success': True, 'model': model_info})
+    except ValueError as e:
+        temp_path.unlink()
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        temp_path.unlink()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/import/local', methods=['POST'])
+def import_local_model():
+    """Import a model from a local .pt file on the server"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available'}), 503
+    
+    data = request.json
+    name = data.get('name')
+    file_path = data.get('path')
+    description = data.get('description', '')
+    
+    if not name:
+        return jsonify({'error': 'Model name required'}), 400
+    
+    if not file_path:
+        return jsonify({'error': 'Path to model file required'}), 400
+    
+    # Validate file path
+    source_path = Path(file_path)
+    if not source_path.exists():
+        return jsonify({'error': f'File not found: {file_path}'}), 404
+    
+    if not source_path.suffix == '.pt':
+        return jsonify({'error': 'File must be a .pt weights file'}), 400
+    
+    try:
+        # Create model entry
+        model_info = model_manager.add_model(name, description)
+        model_id = model_info['id']
+        
+        # Copy weights file to model directory
+        model_dir = model_manager.models_path / model_id
+        dest_filename = source_path.name
+        dest_path = model_dir / dest_filename
+        
+        shutil.copy2(str(source_path), str(dest_path))
+        
+        # Update model info
+        model_type = model_manager.detect_model_type(dest_filename)
+        registry = model_manager.load_registry()
+        registry['models'][model_id]['weights_file'] = dest_filename
+        registry['models'][model_id]['type'] = model_type
+        registry['models'][model_id]['available'] = True
+        registry['models'][model_id]['updated_at'] = model_manager._get_timestamp()
+        model_manager.save_registry(registry)
+        
+        return jsonify({
+            'success': True,
+            'model': registry['models'][model_id]
+        })
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
+        temp_path.unlink()
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/models/<model_id>', methods=['DELETE'])
+def delete_model(model_id):
+    """Delete a model"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available'}), 503
+    
+    try:
+        model_manager.delete_model(model_id)
+        return jsonify({'success': True})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/datasets/<dataset_name>/inference/<model_id>', methods=['POST'])
+def run_inference(dataset_name, model_id):
+    """Run model inference on current image"""
+    if not ULTRALYTICS_AVAILABLE or model_manager is None:
+        return jsonify({'error': 'Model inference not available. Install ultralytics: pip install ultralytics'}), 503
+    
+    # Check dataset exists
+    registry = load_datasets_registry()
+    if dataset_name not in registry['datasets']:
+        return jsonify({'error': 'Dataset not found'}), 404
+    
+    dataset_info = registry['datasets'][dataset_name]
+    data = request.json
+    image_id = data.get('image_id')
+    conf_threshold = data.get('conf_threshold', 0.25)
+    
+    if not image_id:
+        return jsonify({'error': 'Image ID required'}), 400
+    
+    try:
+        # Get image path
+        dataset_path = Path(dataset_info['path'])
+        metadata = load_dataset_metadata(dataset_info)
+        images_path = dataset_path / metadata['images_path']
+        labels_path = dataset_path / metadata['labels_path']
+        
+        # Find image file
+        image_path = None
+        for ext in ['.jpg', '.jpeg', '.png']:
+            potential = images_path / f"{image_id}{ext}"
+            if potential.exists():
+                image_path = potential
+                break
+        
+        if not image_path:
+            return jsonify({'error': 'Image not found'}), 404
+        
+        # Run inference
+        detections = model_manager.run_inference(model_id, str(image_path), conf_threshold)
+        
+        # Get model info for class name mapping
+        model_info = model_manager.get_model_info(model_id)
+        model_name = model_info['name']
+        
+        # Add model class to dataset if not exists
+        if model_name not in metadata['class_names']:
+            metadata['class_names'].append(model_name)
+            save_dataset_metadata(dataset_info, metadata)
+        
+        # Get the class ID for this model
+        model_class_id = metadata['class_names'].index(model_name)
+        
+        # Get image dimensions from first detection (all have same img_width/height)
+        img_width = detections[0]['img_width'] if detections else 1920
+        img_height = detections[0]['img_height'] if detections else 1080
+        
+        # Convert detections to YOLO format lines directly (already normalized)
+        yolo_lines = []
+        for det in detections:
+            # All detections use the model's class ID
+            yolo_lines.append(f"{model_class_id} {det['x_center']:.6f} {det['y_center']:.6f} {det['width']:.6f} {det['height']:.6f}")
+        
+        # Load existing annotations from file
+        label_file_path = labels_path / f"{image_id}.txt"
+        existing_lines = []
+        had_existing = label_file_path.exists()
+        
+        if had_existing:
+            try:
+                with open(label_file_path, 'r') as f:
+                    existing_lines = [line.strip() for line in f.readlines() if line.strip()]
+            except:
+                pass
+        
+        # Combine existing with new lines
+        all_lines = existing_lines + yolo_lines
+        
+        # Write to file
+        if all_lines:
+            with open(label_file_path, 'w') as f:
+                f.write('\n'.join(all_lines))
+            
+            # Update annotated count only if this was a new annotation
+            if not had_existing:
+                update_annotated_count_simple(dataset_info, +1)
+        
+        # Prepare annotations for response (convert normalized back to pixel for display)
+        response_annotations = []
+        for det in detections:
+            response_annotations.append({
+                'label': model_name,
+                'label_id': model_class_id,
+                'xmin': int(det['xmin'] * img_width),
+                'ymin': int(det['ymin'] * img_height),
+                'xmax': int(det['xmax'] * img_width),
+                'ymax': int(det['ymax'] * img_height),
+                'confidence': det['confidence']
+            })
+        
+        return jsonify({
+            'success': True,
+            'detections_count': len(detections),
+            'annotations': response_annotations,
+            'model_class': model_name,
+            'model_class_id': model_class_id
+        })
+        
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
+    except RuntimeError as e:
+        return jsonify({'error': str(e)}), 503
+    except Exception as e:
+        return jsonify({'error': f'Inference failed: {str(e)}'}), 500
 
 if __name__ == '__main__':
     # Create default dataset if none exists

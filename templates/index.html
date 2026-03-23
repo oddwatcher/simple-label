@@ -229,6 +229,34 @@
             cursor: not-allowed;
         }
 
+        /* Model Selector */
+        .model-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .model-select {
+            padding: 8px 12px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+            min-width: 150px;
+            cursor: pointer;
+        }
+
+        .model-select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+
+        .model-select option {
+            background: #1a1a2e;
+            color: #eee;
+        }
+
         /* Canvas Area */
         .canvas-container {
             flex: 1;
@@ -627,7 +655,7 @@
                 </div>
                 <div class="toolbar-group">
                     <button class="btn btn-primary" id="drawBtn" title="Draw Box (D)">
-                        Draw Box
+                        Draw
                     </button>
                     <button class="btn btn-secondary" id="selectBtn" title="Select/Move (S)">
                         Select
@@ -638,10 +666,10 @@
                         ← Datasets
                     </button>
                     <button class="btn btn-secondary" id="uploadBtn" title="Upload Images">
-                        Upload
+                        Upload Image
                     </button>
                     <button class="btn btn-danger" id="deleteBtn" title="Delete Image (Delete)">
-                        Delete
+                        Delete Image
                     </button>
                 </div>
                 <div class="toolbar-group">
@@ -655,6 +683,17 @@
                             <div class="export-item" data-format="coco">COCO Format</div>
                         </div>
                     </div>
+                </div>
+                <div class="toolbar-group model-group">
+                    <select id="modelSelect" class="model-select" title="Select AI Model">
+                        <option value="">-- Select Model --</option>
+                    </select>
+                    <button class="btn btn-primary" id="inferenceBtn" title="Run AI Inference" disabled>
+                        🤖 Inference
+                    </button>
+                    <button class="btn btn-secondary" id="manageModelsBtn" title="Manage Models">
+                        ⚙️ Manage Models
+                    </button>
                 </div>
             </div>
 
@@ -721,7 +760,61 @@
         </div>
     </div>
 
-
+    <!-- Model Management Modal -->
+    <div class="modal" id="modelModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>Manage AI Models</h2>
+            </div>
+            <div class="modal-body">
+                <div id="modelList" style="max-height: 300px; overflow-y: auto; margin-bottom: 20px;">
+                    <p style="color: #6b7280; text-align: center;">Loading models...</p>
+                </div>
+                
+                <div style="border-top: 1px solid #0f3460; padding-top: 20px;">
+                    <h3 style="color: #e94560; margin-bottom: 15px; font-size: 16px;">Add New Model</h3>
+                    
+                    <!-- Import Type Tabs -->
+                    <div class="import-tabs" style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #0f3460; padding-bottom: 10px;">
+                        <button class="import-tab active" data-tab="upload" id="modelTabUpload" style="flex: 1; padding: 10px; background: #0f3460; border: none; color: #eee; cursor: pointer; border-radius: 6px;">Upload File</button>
+                        <button class="import-tab" data-tab="local" id="modelTabLocal" style="flex: 1; padding: 10px; background: transparent; border: none; color: #9ca3af; cursor: pointer; border-radius: 6px;">From Local Path</button>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <input type="text" id="newModelName" placeholder="Model name (e.g., Head Detection)" 
+                               style="width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 6px; background: #1a1a2e; color: #eee;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <input type="text" id="newModelDesc" placeholder="Description (optional)" 
+                               style="width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 6px; background: #1a1a2e; color: #eee;">
+                    </div>
+                    
+                    <!-- Upload File Section -->
+                    <div id="modelUploadSection">
+                        <div class="drop-zone" id="modelDropZone" style="padding: 20px; margin-bottom: 10px;">
+                            <p>Drop model weights file here (.pt)</p>
+                            <p>or click to select</p>
+                            <input type="file" id="modelFileInput" accept=".pt" style="display: none;">
+                        </div>
+                        <p id="selectedModelFile" style="font-size: 12px; color: #4ade80; margin-bottom: 10px;"></p>
+                    </div>
+                    
+                    <!-- Local Path Section -->
+                    <div id="modelLocalSection" style="display: none;">
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <input type="text" id="localModelPath" placeholder="Path to .pt file (e.g., /path/to/model.pt)" 
+                                   style="width: 100%; padding: 10px; border: 1px solid #0f3460; border-radius: 6px; background: #1a1a2e; color: #eee;">
+                        </div>
+                        <p style="font-size: 12px; color: #6b7280;">Enter the full path to a .pt weights file on the server.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeModelBtn">Close</button>
+                <button class="btn btn-primary" id="addModelBtn">Add Model</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Shortcuts Help -->
     <div class="shortcuts-help">

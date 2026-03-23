@@ -1,0 +1,15 @@
+{
+  "models": {
+    "student2": {
+      "id": "student2",
+      "name": "student2",
+      "description": "",
+      "type": "yolo",
+      "weights_file": "yolo11n.pt",
+      "created_at": "2026-03-23T20:09:25.686650",
+      "available": true,
+      "updated_at": "2026-03-23T20:09:25.697311"
+    }
+  },
+  "version": "1.0"
+}

@@ -34,6 +34,11 @@ class LabelingTool {
         this.labelColorMap = {};
         this.hiddenLabels = new Set(); // Track hidden label names
         
+        // Model management
+        this.models = [];
+        this.selectedModel = null;
+        this.modelFileToUpload = null;
+        
         this.init();
     }
     
@@ -51,6 +56,7 @@ class LabelingTool {
         this.setupEventListeners();
         await this.loadImages();
         await this.loadLabels();
+        await this.loadModels();
         this.setupKeyboardShortcuts();
         this.updateModeButtonsState(); // Initialize button states (disabled since no image selected)
     }
@@ -139,6 +145,73 @@ class LabelingTool {
                 }
             }
         });
+        
+        // Model management
+        document.getElementById('modelSelect').addEventListener('change', (e) => {
+            this.selectedModel = e.target.value;
+            document.getElementById('inferenceBtn').disabled = !this.selectedModel || !this.currentImage;
+        });
+        
+        document.getElementById('inferenceBtn').addEventListener('click', () => this.runInference());
+        document.getElementById('manageModelsBtn').addEventListener('click', () => this.showModelModal());
+        document.getElementById('closeModelBtn').addEventListener('click', () => this.hideModelModal());
+        document.getElementById('addModelBtn').addEventListener('click', () => this.addModel());
+        
+        // Model file drop zone
+        const modelDropZone = document.getElementById('modelDropZone');
+        modelDropZone.addEventListener('click', () => document.getElementById('modelFileInput').click());
+        modelDropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            modelDropZone.classList.add('dragover');
+        });
+        modelDropZone.addEventListener('dragleave', () => modelDropZone.classList.remove('dragover'));
+        modelDropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            modelDropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                this.handleModelFileSelect(e.dataTransfer.files[0]);
+            }
+        });
+        document.getElementById('modelFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                this.handleModelFileSelect(e.target.files[0]);
+            }
+        });
+        
+        // Model import tabs
+        document.getElementById('modelTabUpload').addEventListener('click', () => {
+            this.switchModelTab('upload');
+        });
+        document.getElementById('modelTabLocal').addEventListener('click', () => {
+            this.switchModelTab('local');
+        });
+    }
+    
+    switchModelTab(tabName) {
+        const uploadTab = document.getElementById('modelTabUpload');
+        const localTab = document.getElementById('modelTabLocal');
+        const uploadSection = document.getElementById('modelUploadSection');
+        const localSection = document.getElementById('modelLocalSection');
+        
+        if (tabName === 'upload') {
+            uploadTab.classList.add('active');
+            uploadTab.style.background = '#0f3460';
+            uploadTab.style.color = '#eee';
+            localTab.classList.remove('active');
+            localTab.style.background = 'transparent';
+            localTab.style.color = '#9ca3af';
+            uploadSection.style.display = 'block';
+            localSection.style.display = 'none';
+        } else {
+            localTab.classList.add('active');
+            localTab.style.background = '#0f3460';
+            localTab.style.color = '#eee';
+            uploadTab.classList.remove('active');
+            uploadTab.style.background = 'transparent';
+            uploadTab.style.color = '#9ca3af';
+            localSection.style.display = 'block';
+            uploadSection.style.display = 'none';
+        }
     }
     
     setupKeyboardShortcuts() {
@@ -1169,6 +1242,253 @@ class LabelingTool {
         // Canvas is sized to image dimensions, but we can adjust the display size
         if (this.currentImageData) {
             this.render();
+        }
+    }
+    
+    // ==================== MODEL MANAGEMENT ====================
+    
+    async loadModels() {
+        try {
+            const response = await fetch('/api/models');
+            if (response.ok) {
+                const data = await response.json();
+                this.models = data.models || [];
+                this.renderModelSelect();
+            } else if (response.status === 503) {
+                // Models not available
+                console.log('Model inference not available');
+                this.models = [];
+            }
+        } catch (error) {
+            console.error('Failed to load models:', error);
+            this.models = [];
+        }
+    }
+    
+    renderModelSelect() {
+        const select = document.getElementById('modelSelect');
+        const availableModels = this.models.filter(m => m.available);
+        
+        select.innerHTML = '<option value="">-- Select Model --</option>' +
+            availableModels.map(m => `<option value="${m.id}">${m.name} (${m.type})</option>`).join('');
+        
+        // Restore selection if still available
+        if (this.selectedModel && availableModels.find(m => m.id === this.selectedModel)) {
+            select.value = this.selectedModel;
+        } else {
+            this.selectedModel = null;
+        }
+        
+        document.getElementById('inferenceBtn').disabled = !this.selectedModel || !this.currentImage;
+    }
+    
+    async runInference() {
+        if (!this.selectedModel || !this.currentImage) return;
+        
+        const btn = document.getElementById('inferenceBtn');
+        const originalText = btn.textContent;
+        btn.textContent = '🤖 Running...';
+        btn.disabled = true;
+        
+        try {
+            const response = await fetch(`/api/datasets/${this.datasetName}/inference/${this.selectedModel}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    image_id: this.currentImage.id,
+                    conf_threshold: 0.25
+                })
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Reload annotations
+                await this.loadAnnotations();
+                
+                // Reload labels (in case new class was added)
+                await this.loadLabels();
+                
+                // Show success message
+                alert(`Inference complete!\nFound ${result.detections_count} objects\nClass: ${result.model_class}`);
+            } else {
+                const error = await response.json();
+                alert('Inference failed: ' + (error.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Inference failed:', error);
+            alert('Inference failed: ' + error.message);
+        } finally {
+            btn.textContent = originalText;
+            btn.disabled = !this.selectedModel || !this.currentImage;
+        }
+    }
+    
+    showModelModal() {
+        document.getElementById('modelModal').classList.add('active');
+        this.renderModelList();
+    }
+    
+    hideModelModal() {
+        document.getElementById('modelModal').classList.remove('active');
+        this.resetModelForm();
+    }
+    
+    renderModelList() {
+        const container = document.getElementById('modelList');
+        
+        if (this.models.length === 0) {
+            container.innerHTML = '<p style="color: #6b7280; text-align: center;">No models available. Add a model below.</p>';
+            return;
+        }
+        
+        container.innerHTML = this.models.map(m => `
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: #1a1a2e; border-radius: 6px; margin-bottom: 8px;">
+                <div>
+                    <div style="font-weight: 600; color: #eee;">${m.name}</div>
+                    <div style="font-size: 12px; color: #6b7280;">${m.type} | ${m.available ? '✓ Available' : '✗ No weights'}</div>
+                </div>
+                <button class="icon-btn" onclick="tool.deleteModel('${m.id}')" title="Delete Model" style="opacity: 1;">🗑</button>
+            </div>
+        `).join('');
+    }
+    
+    handleModelFileSelect(file) {
+        if (!file.name.endsWith('.pt')) {
+            alert('Please select a .pt weights file');
+            return;
+        }
+        this.modelFileToUpload = file;
+        document.getElementById('selectedModelFile').textContent = `Selected: ${file.name}`;
+    }
+    
+    async addModel() {
+        const name = document.getElementById('newModelName').value.trim();
+        const description = document.getElementById('newModelDesc').value.trim();
+        
+        if (!name) {
+            alert('Please enter a model name');
+            return;
+        }
+        
+        // Check which tab is active
+        const isUploadTab = document.getElementById('modelTabUpload').classList.contains('active');
+        
+        if (isUploadTab) {
+            // Upload file method
+            if (!this.modelFileToUpload) {
+                alert('Please select a weights file');
+                return;
+            }
+            
+            try {
+                // First create model entry
+                const createResponse = await fetch('/api/models', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, description })
+                });
+                
+                if (!createResponse.ok) {
+                    const error = await createResponse.json();
+                    alert('Failed to create model: ' + (error.error || 'Unknown error'));
+                    return;
+                }
+                
+                const modelData = await createResponse.json();
+                const modelId = modelData.model.id;
+                
+                // Upload weights file
+                const formData = new FormData();
+                formData.append('file', this.modelFileToUpload);
+                
+                const uploadResponse = await fetch(`/api/models/${modelId}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (uploadResponse.ok) {
+                    alert('Model added successfully!');
+                    await this.loadModels();
+                    this.renderModelList();
+                    this.resetModelForm();
+                } else {
+                    const error = await uploadResponse.json();
+                    alert('Failed to upload weights: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Failed to add model:', error);
+                alert('Failed to add model: ' + error.message);
+            }
+        } else {
+            // Local import method
+            const filePath = document.getElementById('localModelPath').value.trim();
+            
+            if (!filePath) {
+                alert('Please enter the path to the model file');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/models/import/local', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        description: description,
+                        path: filePath
+                    })
+                });
+                
+                if (response.ok) {
+                    alert('Model imported successfully!');
+                    await this.loadModels();
+                    this.renderModelList();
+                    this.resetModelForm();
+                } else {
+                    const error = await response.json();
+                    alert('Failed to import model: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Failed to import model:', error);
+                alert('Failed to import model: ' + error.message);
+            }
+        }
+    }
+    
+    resetModelForm() {
+        document.getElementById('newModelName').value = '';
+        document.getElementById('newModelDesc').value = '';
+        document.getElementById('selectedModelFile').textContent = '';
+        document.getElementById('localModelPath').value = '';
+        this.modelFileToUpload = null;
+        // Reset to upload tab
+        this.switchModelTab('upload');
+    }
+    
+    async deleteModel(modelId) {
+        if (!confirm('Are you sure you want to delete this model?')) return;
+        
+        try {
+            const response = await fetch(`/api/models/${modelId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                await this.loadModels();
+                this.renderModelList();
+                
+                // Clear selection if deleted model was selected
+                if (this.selectedModel === modelId) {
+                    this.selectedModel = null;
+                    this.renderModelSelect();
+                }
+            } else {
+                const error = await response.json();
+                alert('Failed to delete model: ' + (error.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Failed to delete model:', error);
         }
     }
     
