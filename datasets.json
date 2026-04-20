@@ -7,9 +7,9 @@
       "labels_path": "labels",
       "metadata_file": "metadata.json",
       "created_at": "2026-03-23T15:40:17.725132",
-      "updated_at": "2026-03-23T20:27:42.546337",
+      "updated_at": "2026-04-01T16:12:24.549400",
       "image_count": 11679,
-      "label_count": 10,
+      "label_count": 12,
       "annotated_count": 11113
     }
   },
